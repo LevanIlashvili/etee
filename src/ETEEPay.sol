@@ -41,11 +41,40 @@ contract ETEEPay is Ownable {
     error NoPendingTreasury();
     error TimelockNotReady(uint256 eta, uint256 nowTs);
 
-    constructor(IERC20 _token, address _treasury, uint16 _feeBps, address _owner) Ownable(_owner) {}
+    constructor(IERC20 _token, address _treasury, uint16 _feeBps, address _owner) Ownable(_owner) {
+        if (address(_token) == address(0)) revert ZeroProvider();
+        if (_treasury == address(0)) revert ZeroTreasury();
+        if (_feeBps > BPS_DENOMINATOR) revert InvalidFee();
 
-    function settleJob(address provider, uint256 jobId, uint256 amount) external {}
+        token = _token;
+        treasury = _treasury;
+        feeBps = _feeBps;
+    }
 
-    function setFee(uint16 newFeeBps) external onlyOwner {}
+    function settleJob(address provider, uint256 jobId, uint256 amount) external {
+        if (provider == address(0)) revert ZeroProvider();
+        if (amount == 0) revert ZeroAmount();
+        if (settled[jobId]) revert AlreadySettled(jobId);
+
+        settled[jobId] = true;
+
+        uint256 treasuryAmount = (amount * feeBps) / BPS_DENOMINATOR;
+        uint256 providerAmount = amount - treasuryAmount;
+
+        if (treasuryAmount > 0) {
+            token.safeTransferFrom(msg.sender, treasury, treasuryAmount);
+        }
+        token.safeTransferFrom(msg.sender, provider, providerAmount);
+
+        emit JobSettled(jobId, provider, msg.sender, providerAmount, treasuryAmount);
+    }
+
+    function setFee(uint16 newFeeBps) external onlyOwner {
+        if (newFeeBps > BPS_DENOMINATOR) revert InvalidFee();
+        uint16 oldBps = feeBps;
+        feeBps = newFeeBps;
+        emit FeeUpdated(oldBps, newFeeBps);
+    }
 
     function proposeTreasury(address newTreasury) external onlyOwner {}
 
