@@ -76,9 +76,37 @@ contract ETEEPay is Ownable {
         emit FeeUpdated(oldBps, newFeeBps);
     }
 
-    function proposeTreasury(address newTreasury) external onlyOwner {}
+    function proposeTreasury(address newTreasury) external onlyOwner {
+        if (newTreasury == address(0)) revert ZeroTreasury();
 
-    function applyTreasury() external onlyOwner {}
+        uint256 eta = block.timestamp + TIMELOCK_DELAY;
+        pendingTreasury = newTreasury;
+        treasuryEta = eta;
 
-    function cancelTreasury() external onlyOwner {}
+        emit TreasuryProposed(newTreasury, eta);
+    }
+
+    function applyTreasury() external onlyOwner {
+        address newTreasury = pendingTreasury;
+        if (newTreasury == address(0)) revert NoPendingTreasury();
+        if (block.timestamp < treasuryEta) revert TimelockNotReady(treasuryEta, block.timestamp);
+
+        address oldTreasury = treasury;
+        treasury = newTreasury;
+
+        delete pendingTreasury;
+        delete treasuryEta;
+
+        emit TreasuryUpdated(oldTreasury, newTreasury);
+    }
+
+    function cancelTreasury() external onlyOwner {
+        address cancelled = pendingTreasury;
+        if (cancelled == address(0)) revert NoPendingTreasury();
+
+        delete pendingTreasury;
+        delete treasuryEta;
+
+        emit TreasuryProposalCancelled(cancelled);
+    }
 }

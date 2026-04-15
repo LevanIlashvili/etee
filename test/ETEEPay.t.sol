@@ -26,6 +26,9 @@ contract ETEEPayTest is Test {
         uint256 treasuryAmount
     );
     event FeeUpdated(uint16 oldBps, uint16 newBps);
+    event TreasuryProposed(address indexed newTreasury, uint256 eta);
+    event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
+    event TreasuryProposalCancelled(address indexed cancelledTreasury);
 
     function setUp() public {
         usdc = new MockUSDC();
@@ -87,5 +90,67 @@ contract ETEEPayTest is Test {
         vm.prank(payer);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, payer));
         pay.setFee(1_000);
+    }
+
+    function test_treasury_proposeAndApplyAfterDelay() public {
+        address newTreasury = makeAddr("newTreasury");
+        uint256 eta = block.timestamp + pay.TIMELOCK_DELAY();
+
+        vm.expectEmit(true, false, false, true, address(pay));
+        emit TreasuryProposed(newTreasury, eta);
+
+        vm.prank(owner);
+        pay.proposeTreasury(newTreasury);
+
+        assertEq(pay.pendingTreasury(), newTreasury);
+        assertEq(pay.treasuryEta(), eta);
+
+        vm.warp(eta);
+
+        vm.expectEmit(true, true, false, true, address(pay));
+        emit TreasuryUpdated(treasury, newTreasury);
+
+        vm.prank(owner);
+        pay.applyTreasury();
+
+        assertEq(pay.treasury(), newTreasury);
+        assertEq(pay.pendingTreasury(), address(0));
+        assertEq(pay.treasuryEta(), 0);
+    }
+
+    function test_applyTreasury_revertsBeforeDelay() public {
+        address newTreasury = makeAddr("newTreasury");
+
+        vm.startPrank(owner);
+        pay.proposeTreasury(newTreasury);
+
+        uint256 eta = pay.treasuryEta();
+        vm.warp(eta - 1);
+
+        vm.expectRevert(abi.encodeWithSelector(ETEEPay.TimelockNotReady.selector, eta, eta - 1));
+        pay.applyTreasury();
+        vm.stopPrank();
+    }
+
+    function test_applyTreasury_revertsWithoutPending() public {
+        vm.prank(owner);
+        vm.expectRevert(ETEEPay.NoPendingTreasury.selector);
+        pay.applyTreasury();
+    }
+
+    function test_cancelTreasury_clearsPending() public {
+        address newTreasury = makeAddr("newTreasury");
+
+        vm.startPrank(owner);
+        pay.proposeTreasury(newTreasury);
+
+        vm.expectEmit(true, false, false, true, address(pay));
+        emit TreasuryProposalCancelled(newTreasury);
+        pay.cancelTreasury();
+        vm.stopPrank();
+
+        assertEq(pay.pendingTreasury(), address(0));
+        assertEq(pay.treasuryEta(), 0);
+        assertEq(pay.treasury(), treasury);
     }
 }
