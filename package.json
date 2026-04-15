@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "settle": "tsx client/settle.ts"
+    "settle": "tsx client/settle.ts",
+    "mint": "tsx client/mint.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

@@ -49,6 +49,16 @@ Minimal fee-switch settlement module on Base Sepolia. `settleJob` pulls an ERC-2
 
    Script handles the `approve` flow automatically (infinite approval, one-time), generates a unique `jobId` from `Date.now()`, and prints the tx hash + Basescan link.
 
+### Mint mUSDC
+
+`MockUSDC.mint` is open — anyone can mint test tokens.
+
+```bash
+npm run mint                               # 1000 mUSDC to the caller
+npm run mint -- --amount 500               # custom amount
+npm run mint -- --to 0x... --amount 500    # mint to another address
+```
+
 ## Project structure
 
 ```
@@ -61,7 +71,8 @@ Minimal fee-switch settlement module on Base Sepolia. `settleJob` pulls an ERC-2
 ├── script/
 │   └── Deploy.s.sol         # forge deploy script
 ├── client/
-│   └── settle.ts            # viem settle executor
+│   ├── settle.ts            # viem settle executor
+│   └── mint.ts              # mUSDC minter
 ├── foundry.toml
 ├── package.json
 └── .env.example
